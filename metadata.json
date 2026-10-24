@@ -1,0 +1,6 @@
+{
+  "name": "Kharcha AI — Expandable Voice Expense Tracker",
+  "description": "Mobile-first AI expense tracking widget with natural language voice extraction in Roman Urdu & English, spending insights, budget tracking, and full browser dashboard.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
