@@ -10,10 +10,14 @@ import {
   loadCurrency,
   saveCurrency,
   getCurrencyConfig,
+  getInitialSeedExpenses,
 } from './lib/storage';
 import { ExpandedWidget } from './components/ExpandedWidget';
 import { EditExpenseModal } from './components/EditExpenseModal';
 import { CurrencySetupModal } from './components/CurrencySetupModal';
+import { DeleteConfirmationModal } from './components/DeleteConfirmationModal';
+import { ResetConfirmationModal } from './components/ResetConfirmationModal';
+import { PWAInstallButton } from './components/PWAInstallButton';
 import { PhoneWidgetIcon } from './components/PhoneWidgetIcon';
 import {
   Sparkles,
@@ -37,6 +41,10 @@ interface Toast {
   id: string;
   message: string;
   type?: 'success' | 'info' | 'error';
+  action?: {
+    label: string;
+    onClick: () => void;
+  };
 }
 
 export default function App() {
@@ -58,15 +66,23 @@ export default function App() {
   const [isExtracting, setIsExtracting] = useState<boolean>(false);
   const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
 
-  // 5. Toast notifications
+  // 5. In-app confirmation dialog state
+  const [expensePendingDelete, setExpensePendingDelete] = useState<Expense | null>(null);
+  const [showResetModal, setShowResetModal] = useState<boolean>(false);
+
+  // 6. Toast notifications
   const [toasts, setToasts] = useState<Toast[]>([]);
 
-  const showToast = (message: string, type: 'success' | 'info' | 'error' = 'success') => {
+  const showToast = (
+    message: string,
+    type: 'success' | 'info' | 'error' = 'success',
+    action?: { label: string; onClick: () => void }
+  ) => {
     const id = Math.random().toString(36).substring(2, 9);
-    setToasts((prev) => [...prev, { id, message, type }]);
+    setToasts((prev) => [...prev, { id, message, type, action }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3800);
+    }, action ? 6000 : 3800);
   };
 
   // Sync state to LocalStorage
@@ -196,12 +212,30 @@ export default function App() {
     showToast(`Updated "${updated.title}"`);
   };
 
-  // Handler: Delete expense
+  // Handler: Delete expense - opens in-app confirmation modal
   const handleDeleteExpense = (id: string) => {
-    if (window.confirm('Delete this expense?')) {
-      setExpenses((prev) => prev.filter((item) => item.id !== id));
-      showToast('Expense removed', 'info');
+    const item = expenses.find((e) => e.id === id);
+    if (item) {
+      setExpensePendingDelete(item);
     }
+  };
+
+  // Perform confirmed deletion
+  const handleConfirmDelete = () => {
+    if (!expensePendingDelete) return;
+    const item = expensePendingDelete;
+    setExpenses((prev) => prev.filter((e) => e.id !== item.id));
+    setExpensePendingDelete(null);
+    if (editingExpense?.id === item.id) {
+      setEditingExpense(null);
+    }
+    showToast(`Deleted "${item.title}"`, 'info', {
+      label: 'Undo',
+      onClick: () => {
+        setExpenses((prev) => [item, ...prev]);
+        showToast(`Restored "${item.title}"`, 'success');
+      },
+    });
   };
 
   // Handler: Update budget
@@ -212,10 +246,16 @@ export default function App() {
 
   // Reset to initial sample data
   const handleResetData = () => {
-    if (window.confirm('Reset demo transactions to initial state?')) {
-      localStorage.removeItem('kharcha_ai_expenses_v1');
-      window.location.reload();
-    }
+    setShowResetModal(true);
+  };
+
+  const handleConfirmReset = () => {
+    localStorage.removeItem('kharcha_ai_expenses_v1');
+    const freshSeed = getInitialSeedExpenses();
+    saveExpenses(freshSeed);
+    setExpenses(freshSeed);
+    setShowResetModal(false);
+    showToast('Reset sample transactions successfully', 'info');
   };
 
   // Current dynamic time for mobile status bar & clock
@@ -253,7 +293,7 @@ export default function App() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`p-3 text-white rounded-2xl shadow-xl text-xs font-medium flex items-center gap-2.5 pointer-events-auto border animate-in slide-in-from-top-2 duration-200 ${
+            className={`p-3 text-white rounded-2xl shadow-xl text-xs font-medium flex items-center justify-between gap-3 pointer-events-auto border animate-in slide-in-from-top-2 duration-200 ${
               toast.type === 'error'
                 ? 'bg-rose-950/95 border-rose-800'
                 : toast.type === 'info'
@@ -261,12 +301,27 @@ export default function App() {
                 : 'bg-emerald-950/95 border-emerald-700'
             }`}
           >
-            {toast.type === 'error' ? (
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-            ) : (
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <div className="flex items-center gap-2.5 min-w-0">
+              {toast.type === 'error' ? (
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              )}
+              <span className="leading-tight truncate">{toast.message}</span>
+            </div>
+
+            {toast.action && (
+              <button
+                type="button"
+                onClick={() => {
+                  toast.action?.onClick();
+                  setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+                }}
+                className="px-2.5 py-1 text-[11px] font-bold bg-white text-stone-900 hover:bg-stone-100 rounded-lg transition-colors shrink-0 shadow-xs cursor-pointer"
+              >
+                {toast.action.label}
+              </button>
             )}
-            <span className="leading-tight">{toast.message}</span>
           </div>
         ))}
 
@@ -328,7 +383,10 @@ export default function App() {
               </div>
 
               {/* Bottom Phone Dock */}
-              <div className="space-y-4 pb-2">
+              <div className="space-y-3 pb-2">
+                <div className="flex justify-center">
+                  <PWAInstallButton variant="compact" />
+                </div>
                 <div className="p-2.5 bg-white/10 backdrop-blur-xl rounded-3xl flex items-center justify-around text-stone-300 border border-white/5">
                   <div className="w-11 h-11 rounded-2xl bg-emerald-600/90 flex items-center justify-center text-white shadow-sm">
                     <Phone className="w-5 h-5" />
@@ -370,6 +428,8 @@ export default function App() {
 
       {/* Desktop External Helper Controls Bar */}
       <div className="hidden sm:flex items-center justify-center gap-3 mt-4 text-xs text-stone-500">
+        <PWAInstallButton variant="compact" />
+
         <button
           type="button"
           onClick={() => setShowCurrencyModal(true)}
@@ -400,20 +460,46 @@ export default function App() {
       </div>
 
       {/* Edit Expense Modal */}
-      <EditExpenseModal
-        expense={editingExpense}
-        onClose={() => setEditingExpense(null)}
-        onSave={handleUpdateExpense}
-      />
+      {editingExpense && (
+        <EditExpenseModal
+          expense={editingExpense}
+          currency={currency}
+          onClose={() => setEditingExpense(null)}
+          onSave={handleUpdateExpense}
+          onDelete={handleDeleteExpense}
+        />
+      )}
+
+      {/* In-App Delete Confirmation Modal */}
+      {expensePendingDelete && (
+        <DeleteConfirmationModal
+          isOpen={!!expensePendingDelete}
+          expense={expensePendingDelete}
+          currency={currency}
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setExpensePendingDelete(null)}
+        />
+      )}
+
+      {/* In-App Reset Demo Confirmation Modal */}
+      {showResetModal && (
+        <ResetConfirmationModal
+          isOpen={showResetModal}
+          onConfirm={handleConfirmReset}
+          onCancel={() => setShowResetModal(false)}
+        />
+      )}
 
       {/* One-time Currency Setup Modal */}
-      <CurrencySetupModal
-        isOpen={showCurrencyModal}
-        selectedCurrency={currency}
-        onSelectCurrency={handleSelectCurrency}
-        onClose={() => setShowCurrencyModal(false)}
-        isInitialSetup={!loadCurrency()}
-      />
+      {showCurrencyModal && (
+        <CurrencySetupModal
+          isOpen={showCurrencyModal}
+          selectedCurrency={currency}
+          onSelectCurrency={handleSelectCurrency}
+          onClose={() => setShowCurrencyModal(false)}
+          isInitialSetup={!loadCurrency()}
+        />
+      )}
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
 import { formatCurrency, getCurrencyConfig } from '../lib/storage';
 import { CategoryIcon } from './CategoryIcon';
 import { speechManager } from '../lib/speech';
+import { PWAInstallButton } from './PWAInstallButton';
 import {
   X,
   Plus,
@@ -167,16 +168,19 @@ export const ExpandedWidget: React.FC<ExpandedWidgetProps> = ({
           </div>
         </div>
 
-        {/* Close Button */}
-        <button
-          type="button"
-          onClick={onCollapse}
-          className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center transition-colors cursor-pointer"
-          title="Close to Phone Screen"
-          aria-label="Close"
-        >
-          <X className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1.5">
+          <PWAInstallButton />
+          {/* Close Button */}
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="w-8 h-8 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 flex items-center justify-center transition-colors cursor-pointer"
+            title="Close to Phone Screen"
+            aria-label="Close"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* 2. SCROLLABLE WIDGET BODY */}

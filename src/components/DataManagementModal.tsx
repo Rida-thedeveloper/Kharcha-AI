@@ -17,11 +17,11 @@ export const DataManagementModal: React.FC<DataManagementModalProps> = ({
   budget,
   onImportExpenses,
 }) => {
-  if (!isOpen) return null;
-
   const [activeTab, setActiveTab] = useState<'backup' | 'supabase'>('backup');
   const [importStatus, setImportStatus] = useState<string | null>(null);
   const [statusType, setStatusType] = useState<'success' | 'error' | null>(null);
+
+  if (!isOpen) return null;
 
   // Export JSON file
   const handleExportJSON = () => {

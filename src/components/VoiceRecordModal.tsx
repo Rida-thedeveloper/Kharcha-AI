@@ -27,8 +27,6 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({
   initialText = '',
   autoStartRecording = false,
 }) => {
-  if (!isOpen) return null;
-
   const [isRecording, setIsRecording] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [speechError, setSpeechError] = useState<string | null>(null);
@@ -44,13 +42,14 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({
 
   // Process initialText if provided, or auto start mic if requested
   useEffect(() => {
+    if (!isOpen) return;
     if (initialText && initialText.trim()) {
       setManualText(initialText);
       processTranscript(initialText.trim());
     } else if (autoStartRecording && isSpeechSupported) {
       startVoiceRecording();
     }
-  }, [initialText, autoStartRecording]);
+  }, [isOpen, initialText, autoStartRecording]);
 
   // Cleanup on unmount or close
   useEffect(() => {
@@ -174,6 +173,8 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({
     onSaveExpenses(validItems);
     onClose();
   };
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
