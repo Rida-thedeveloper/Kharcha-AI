@@ -21,6 +21,7 @@ interface CompactWidgetProps {
   onQuickTextSubmit: (text: string) => void;
   onEditExpense: (expense: Expense) => void;
   onDeleteExpense: (id: string) => void;
+  isBudgetExceeded?: boolean;
 }
 
 export const CompactWidget: React.FC<CompactWidgetProps> = ({
@@ -32,6 +33,7 @@ export const CompactWidget: React.FC<CompactWidgetProps> = ({
   onQuickTextSubmit,
   onEditExpense,
   onDeleteExpense,
+  isBudgetExceeded = false,
 }) => {
   const [quickInput, setQuickInput] = useState('');
   const [showQuickInput, setShowQuickInput] = useState(false);
@@ -51,19 +53,25 @@ export const CompactWidget: React.FC<CompactWidgetProps> = ({
   };
 
   return (
-    <div className="w-full max-w-[390px] mx-auto bg-[#FAF8F5] rounded-3xl border border-stone-200/90 shadow-xl overflow-hidden transition-all duration-300">
+    <div className={`w-full max-w-[390px] mx-auto rounded-3xl border shadow-xl overflow-hidden transition-all duration-300 ${
+      isBudgetExceeded ? 'bg-rose-50/60 border-rose-300' : 'bg-[#FAF8F5] border-stone-200/90'
+    }`}>
       {/* Widget Header */}
       <div className="px-5 pt-5 pb-3 flex items-center justify-between border-b border-stone-200/60">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-emerald-700 flex items-center justify-center text-white shadow-xs">
+          <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-white shadow-xs ${
+            isBudgetExceeded ? 'bg-rose-600' : 'bg-emerald-700'
+          }`}>
             <Sparkles className="w-4 h-4" />
           </div>
           <div>
             <h1 className="text-sm font-bold tracking-tight text-stone-900 leading-tight">
               Kharcha AI
             </h1>
-            <span className="text-[10px] text-emerald-800 font-semibold uppercase tracking-wider">
-              Smart Expense Tracker
+            <span className={`text-[10px] font-semibold uppercase tracking-wider ${
+              isBudgetExceeded ? 'text-rose-700 font-extrabold' : 'text-emerald-800'
+            }`}>
+              {isBudgetExceeded ? '⚠️ Over Budget' : 'Smart Expense Tracker'}
             </span>
           </div>
         </div>
@@ -87,11 +95,13 @@ export const CompactWidget: React.FC<CompactWidgetProps> = ({
         </p>
         <div className="mt-1 flex items-baseline justify-between">
           <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-extrabold text-stone-900 font-mono tabular-nums tracking-tight">
+            <span className={`text-2xl font-extrabold font-mono tabular-nums tracking-tight ${
+              isBudgetExceeded ? 'text-rose-600 animate-pulse' : 'text-stone-900'
+            }`}>
               {formatPKR(todayTotal)}
             </span>
-            <span className="text-[11px] font-medium text-stone-400">
-              spent today
+            <span className={`text-[11px] font-medium ${isBudgetExceeded ? 'text-rose-500 font-bold' : 'text-stone-400'}`}>
+              spent today {isBudgetExceeded ? '(Over Limit!)' : ''}
             </span>
           </div>
           <span className="text-[11px] font-medium text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-full">

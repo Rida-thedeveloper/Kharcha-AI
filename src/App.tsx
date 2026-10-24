@@ -379,6 +379,8 @@ export default function App() {
                   onHoldRecordComplete={handleDirectExtractAndSave}
                   onSpeechError={(err) => showToast(err, 'info')}
                   isProcessing={isExtracting}
+                  isBudgetExceeded={metrics.isBudgetExceeded}
+                  isBudgetWarning={metrics.isBudgetWarning}
                 />
               </div>
 

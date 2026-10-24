@@ -187,36 +187,83 @@ export const ExpandedWidget: React.FC<ExpandedWidgetProps> = ({
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {/* SPENDING METRICS CARDS */}
         <div className="grid grid-cols-2 gap-3">
-          {/* Today's Spend Card */}
-          <div className="p-3.5 rounded-2xl bg-white border border-stone-200 shadow-xs">
-            <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
-              Today&apos;s Spend
-            </span>
-            <div className="mt-1 text-xl font-black font-mono tracking-tight text-emerald-950">
+          {/* Today's Spend Card - turns red when budget exceeded */}
+          <div
+            className={`p-3.5 rounded-2xl shadow-xs transition-all ${
+              metrics.isBudgetExceeded
+                ? 'bg-rose-50/90 border-2 border-rose-400 ring-2 ring-rose-400/30'
+                : metrics.isBudgetWarning
+                ? 'bg-amber-50/80 border-2 border-amber-300'
+                : 'bg-white border border-stone-200'
+            }`}
+          >
+            <div className="flex items-center justify-between">
+              <span
+                className={`text-[10px] font-bold uppercase tracking-wider block ${
+                  metrics.isBudgetExceeded ? 'text-rose-700' : 'text-stone-400'
+                }`}
+              >
+                Today&apos;s Spend
+              </span>
+              {metrics.isBudgetExceeded && (
+                <span className="text-[9px] font-black text-rose-700 bg-rose-200/80 px-1.5 py-0.5 rounded-full flex items-center gap-0.5 animate-pulse">
+                  <AlertTriangle className="w-2.5 h-2.5" /> OVER
+                </span>
+              )}
+            </div>
+            <div
+              className={`mt-1 text-xl font-black font-mono tracking-tight transition-colors ${
+                metrics.isBudgetExceeded
+                  ? 'text-rose-600 animate-pulse'
+                  : 'text-emerald-950'
+              }`}
+            >
               {formatCurrency(metrics.todayTotal, currency)}
             </div>
-            <span className="text-[10px] text-stone-500 mt-1 block">
+            <span
+              className={`text-[10px] mt-1 block ${
+                metrics.isBudgetExceeded ? 'text-rose-600 font-bold' : 'text-stone-500'
+              }`}
+            >
               {metrics.transactionCount} entries today
             </span>
           </div>
 
           {/* Monthly Budget Card */}
-          <div className="p-3.5 rounded-2xl bg-white border border-stone-200 shadow-xs flex flex-col justify-between">
+          <div
+            className={`p-3.5 rounded-2xl shadow-xs flex flex-col justify-between transition-all ${
+              metrics.isBudgetExceeded
+                ? 'bg-rose-50/90 border-2 border-rose-400 ring-2 ring-rose-400/30'
+                : metrics.isBudgetWarning
+                ? 'bg-amber-50/80 border-2 border-amber-300'
+                : 'bg-white border border-stone-200'
+            }`}
+          >
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-wider block">
+                <span
+                  className={`text-[10px] font-bold uppercase tracking-wider block ${
+                    metrics.isBudgetExceeded ? 'text-rose-700' : 'text-stone-400'
+                  }`}
+                >
                   Month Progress
                 </span>
                 <button
                   type="button"
                   onClick={() => setShowBudgetEditor(!showBudgetEditor)}
-                  className="text-[10px] text-emerald-700 font-bold hover:underline cursor-pointer"
+                  className={`text-[10px] font-bold hover:underline cursor-pointer ${
+                    metrics.isBudgetExceeded ? 'text-rose-700' : 'text-emerald-700'
+                  }`}
                 >
                   Edit
                 </button>
               </div>
-              <div className="mt-1 text-sm font-bold font-mono text-stone-800">
-                {metrics.budgetUsedPercent}% used
+              <div
+                className={`mt-1 text-sm font-black font-mono ${
+                  metrics.isBudgetExceeded ? 'text-rose-600' : 'text-stone-800'
+                }`}
+              >
+                {metrics.budgetUsedPercent}% used {metrics.isBudgetExceeded && '⚠️'}
               </div>
             </div>
 
@@ -235,6 +282,32 @@ export const ExpandedWidget: React.FC<ExpandedWidgetProps> = ({
             </div>
           </div>
         </div>
+
+        {/* OVER BUDGET ALERT BANNER */}
+        {metrics.isBudgetExceeded && (
+          <div className="p-3 bg-rose-600 text-white rounded-2xl shadow-md border border-rose-500 flex items-center justify-between animate-in fade-in duration-200">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                <AlertTriangle className="w-4.5 h-4.5 text-white animate-bounce" />
+              </div>
+              <div>
+                <span className="text-xs font-black block leading-tight">
+                  Budget Limit Exceeded!
+                </span>
+                <span className="text-[11px] text-rose-100 font-medium block">
+                  Spent {formatCurrency(metrics.monthTotal, currency)} of {formatCurrency(budget.monthlyBudget, currency)} limit
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowBudgetEditor(true)}
+              className="px-2.5 py-1 text-[11px] font-bold bg-white text-rose-700 hover:bg-rose-50 rounded-lg shrink-0 shadow-xs cursor-pointer"
+            >
+              Adjust
+            </button>
+          </div>
+        )}
 
         {/* Inline Budget Editor (when user taps 'Edit') */}
         {showBudgetEditor && (

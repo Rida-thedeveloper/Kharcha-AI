@@ -10,6 +10,8 @@ interface PhoneWidgetIconProps {
   onHoldRecordComplete: (transcript: string) => void;
   onSpeechError?: (error: string) => void;
   isProcessing?: boolean;
+  isBudgetExceeded?: boolean;
+  isBudgetWarning?: boolean;
 }
 
 export const PhoneWidgetIcon: React.FC<PhoneWidgetIconProps> = ({
@@ -19,6 +21,8 @@ export const PhoneWidgetIcon: React.FC<PhoneWidgetIconProps> = ({
   onHoldRecordComplete,
   onSpeechError,
   isProcessing = false,
+  isBudgetExceeded = false,
+  isBudgetWarning = false,
 }) => {
   const [isHolding, setIsHolding] = useState(false);
   const [recordingTranscript, setRecordingTranscript] = useState('');
@@ -196,6 +200,10 @@ export const PhoneWidgetIcon: React.FC<PhoneWidgetIconProps> = ({
         className={`relative group flex items-center justify-center transition-all duration-200 cursor-pointer focus:outline-none select-none ${
           isHolding
             ? 'w-24 h-24 rounded-full bg-rose-600 text-white shadow-2xl ring-4 ring-rose-400 scale-105'
+            : isBudgetExceeded
+            ? 'w-20 h-20 rounded-3xl bg-gradient-to-br from-rose-700 via-rose-800 to-stone-950 text-white shadow-2xl hover:scale-105 active:scale-95 border-2 border-rose-500 ring-4 ring-rose-500/40 animate-pulse'
+            : isBudgetWarning
+            ? 'w-20 h-20 rounded-3xl bg-gradient-to-br from-amber-700 via-stone-800 to-emerald-950 text-white shadow-2xl hover:scale-105 active:scale-95 border-2 border-amber-400/80 ring-2 ring-amber-400/30'
             : 'w-20 h-20 rounded-3xl bg-gradient-to-br from-emerald-600 via-emerald-700 to-emerald-950 text-white shadow-2xl hover:scale-105 active:scale-95 border-2 border-emerald-400/40 ring-1 ring-white/20'
         }`}
         aria-label="Kharcha AI: Tap to expand, Hold to record audio"
@@ -216,32 +224,48 @@ export const PhoneWidgetIcon: React.FC<PhoneWidgetIconProps> = ({
             <>
               <div className="relative">
                 <Mic className="w-7 h-7 text-white" />
-                <Sparkles className="w-3.5 h-3.5 text-emerald-200 absolute -top-1 -right-2 animate-bounce" />
+                <Sparkles className={`w-3.5 h-3.5 absolute -top-1 -right-2 animate-bounce ${isBudgetExceeded ? 'text-rose-300' : 'text-emerald-200'}`} />
               </div>
-              <span className="text-[10px] font-black tracking-tight mt-1 text-emerald-100">
-                KHARCHA
+              <span className={`text-[10px] font-black tracking-tight mt-1 ${isBudgetExceeded ? 'text-rose-200' : 'text-emerald-100'}`}>
+                {isBudgetExceeded ? 'OVER BUDGET' : 'KHARCHA'}
               </span>
             </>
           )}
         </div>
 
-        {/* Small live spend badge on top corner */}
+        {/* Small live spend badge on top corner - turns red when budget exceeded */}
         {!isHolding && (
-          <div className="absolute -top-1.5 -right-2 bg-stone-900 text-white font-mono tabular-nums text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md border border-stone-700">
-            {formatCurrency(todayTotal, currency)}
+          <div
+            className={`absolute -top-2 -right-3 font-mono tabular-nums text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 transition-all ${
+              isBudgetExceeded
+                ? 'bg-rose-600 text-white border-2 border-rose-300 ring-2 ring-rose-500/60 animate-bounce'
+                : isBudgetWarning
+                ? 'bg-amber-600 text-white border border-amber-400 shadow-md'
+                : 'bg-stone-900 text-white border border-stone-700 shadow-md'
+            }`}
+          >
+            {isBudgetExceeded && <span className="text-[10px] leading-none">⚠️</span>}
+            <span>{formatCurrency(todayTotal, currency)}</span>
           </div>
         )}
       </button>
 
       {/* Subtitle / Interaction Instructions */}
       <div className="mt-3.5 text-center pointer-events-none select-none">
-        <p className="text-xs font-bold text-stone-200 flex items-center justify-center gap-1.5 drop-shadow-sm">
-          <span>Tap to Expand</span>
-          <span className="text-stone-500">·</span>
-          <span>Hold to Speak</span>
-        </p>
-        <p className="text-[11px] text-stone-400 mt-0.5">
-          Release to auto-categorize &amp; save
+        {isBudgetExceeded ? (
+          <p className="text-xs font-black text-rose-400 flex items-center justify-center gap-1 drop-shadow-sm animate-pulse">
+            <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+            <span>Over Budget! Limit Crossed</span>
+          </p>
+        ) : (
+          <p className="text-xs font-bold text-stone-200 flex items-center justify-center gap-1.5 drop-shadow-sm">
+            <span>Tap to Expand</span>
+            <span className="text-stone-500">·</span>
+            <span>Hold to Speak</span>
+          </p>
+        )}
+        <p className={`text-[11px] mt-0.5 ${isBudgetExceeded ? 'text-rose-300 font-medium' : 'text-stone-400'}`}>
+          {isBudgetExceeded ? 'Tap to view expenses & adjust budget' : 'Release to auto-categorize & save'}
         </p>
       </div>
     </div>

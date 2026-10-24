@@ -257,16 +257,16 @@ export const FullDashboard: React.FC<FullDashboardProps> = ({
 
         {/* KPI Strip */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="p-5 rounded-2xl bg-white border border-stone-200 shadow-xs">
+          <div className={`p-5 rounded-2xl bg-white border shadow-xs transition-colors ${metrics.isBudgetExceeded ? 'border-rose-300 bg-rose-50/40' : 'border-stone-200'}`}>
             <span className="text-xs font-medium text-stone-500 block">
               Today&apos;s Spending
             </span>
             <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono tabular-nums text-stone-900">
+              <span className={`text-2xl font-bold font-mono tabular-nums ${metrics.isBudgetExceeded ? 'text-rose-600 animate-pulse' : 'text-stone-900'}`}>
                 {formatPKR(metrics.todayTotal)}
               </span>
-              <span className="text-xs text-emerald-800 font-medium bg-emerald-50 px-2 py-0.5 rounded">
-                Today
+              <span className={`text-xs font-medium px-2 py-0.5 rounded ${metrics.isBudgetExceeded ? 'text-rose-800 bg-rose-100 font-bold' : 'text-emerald-800 bg-emerald-50'}`}>
+                {metrics.isBudgetExceeded ? '⚠️ Over' : 'Today'}
               </span>
             </div>
           </div>
@@ -285,16 +285,16 @@ export const FullDashboard: React.FC<FullDashboardProps> = ({
             </div>
           </div>
 
-          <div className="p-5 rounded-2xl bg-white border border-stone-200 shadow-xs">
+          <div className={`p-5 rounded-2xl bg-white border shadow-xs transition-colors ${metrics.isBudgetExceeded ? 'border-rose-300 bg-rose-50/40' : 'border-stone-200'}`}>
             <span className="text-xs font-medium text-stone-500 block">
               This Month
             </span>
             <div className="mt-2 flex items-baseline justify-between">
-              <span className="text-2xl font-bold font-mono tabular-nums text-emerald-800">
+              <span className={`text-2xl font-bold font-mono tabular-nums ${metrics.isBudgetExceeded ? 'text-rose-600 animate-pulse' : 'text-emerald-800'}`}>
                 {formatPKR(metrics.monthTotal)}
               </span>
-              <span className="text-xs text-stone-500 font-mono tabular-nums">
-                {metrics.transactionCount} txns
+              <span className={`text-xs font-mono tabular-nums ${metrics.isBudgetExceeded ? 'text-rose-600 font-bold' : 'text-stone-500'}`}>
+                {metrics.transactionCount} txns {metrics.isBudgetExceeded ? '(Over Budget)' : ''}
               </span>
             </div>
           </div>

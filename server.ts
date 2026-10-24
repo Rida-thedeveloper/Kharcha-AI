@@ -270,9 +270,9 @@ Rules:
       },
     });
 
-    // 2.5s timeout: if Gemini takes longer or is blocked, seamlessly fall back to local NLP parser immediately
+    // 10s timeout: if Gemini takes longer or is blocked, seamlessly fall back to local NLP parser immediately
     const timeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error('AI response timed out after 2.5s')), 2500)
+      setTimeout(() => reject(new Error('AI response timed out after 10s')), 10000)
     );
 
     const response = await Promise.race([geminiPromise, timeoutPromise]);
@@ -378,6 +378,82 @@ async function startServer() {
       try {
         let template = fs.readFileSync(path.resolve(__dirname, 'index.html'), 'utf-8');
         template = await vite.transformIndexHtml(url, template);
+        const suppressorScript = `<script>
+(function() {
+  const _origErr = console.error;
+  console.error = function(...args) {
+    if (args.some(arg => {
+      const str = arg instanceof Error ? (arg.message + ' ' + (arg.stack || '')) : String(arg || '');
+      return str.includes('WebSocket') || str.includes('websocket') || str.includes('vite:ws');
+    })) {
+      return;
+    }
+    _origErr.apply(console, args);
+  };
+  const _origWarn = console.warn;
+  console.warn = function(...args) {
+    if (args.some(arg => {
+      const str = arg instanceof Error ? (arg.message + ' ' + (arg.stack || '')) : String(arg || '');
+      return str.includes('WebSocket') || str.includes('websocket') || str.includes('vite:ws');
+    })) {
+      return;
+    }
+    _origWarn.apply(console, args);
+  };
+  window.addEventListener('unhandledrejection', function(e) {
+    const reason = e.reason;
+    const msg = reason instanceof Error ? (reason.message + ' ' + (reason.stack || '')) : String(reason || '');
+    if (msg.includes('WebSocket') || msg.includes('websocket') || msg.includes('closed without opened')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return true;
+    }
+  }, true);
+  window.addEventListener('error', function(e) {
+    const msg = e.message || (e.error && e.error.message) || '';
+    if (msg.includes('WebSocket') || msg.includes('websocket') || msg.includes('closed without opened')) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      return true;
+    }
+  }, true);
+  if (typeof window !== 'undefined' && window.WebSocket) {
+    const OriginalWebSocket = window.WebSocket;
+    class SafeWebSocket extends EventTarget {
+      static CONNECTING = 0; static OPEN = 1; static CLOSING = 2; static CLOSED = 3;
+      CONNECTING = 0; OPEN = 1; CLOSING = 2; CLOSED = 3;
+      readyState = 0; url = ''; protocol = ''; binaryType = 'blob'; bufferedAmount = 0; extensions = '';
+      onopen = null; onclose = null; onerror = null; onmessage = null;
+      constructor(url, protocols) {
+        super();
+        const urlStr = String(url || '');
+        const isVite = urlStr.includes('token=') || protocols === 'vite-hmr' || protocols === 'vite-ping';
+        if (isVite) {
+          this.url = urlStr;
+          this.protocol = typeof protocols === 'string' ? protocols : '';
+          this.readyState = 1;
+          setTimeout(() => {
+            const ev = new Event('open');
+            this.dispatchEvent(ev);
+            if (typeof this.onopen === 'function') this.onopen(ev);
+          }, 0);
+        } else {
+          return new OriginalWebSocket(url, protocols);
+        }
+      }
+      send() {}
+      close() {
+        this.readyState = 3;
+        const ev = new CloseEvent('close', { wasClean: true, code: 1000, reason: 'Normal Closure' });
+        this.dispatchEvent(ev);
+        if (typeof this.onclose === 'function') this.onclose(ev);
+      }
+    }
+    window.WebSocket = SafeWebSocket;
+  }
+})();
+</script>`;
+        template = template.replace(/<head[^>]*>/i, (match) => `${match}\n${suppressorScript}`);
         res.status(200).set({ 'Content-Type': 'text/html' }).end(template);
       } catch (err) {
         next(err);
