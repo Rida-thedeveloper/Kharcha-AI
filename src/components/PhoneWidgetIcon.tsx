@@ -168,7 +168,7 @@ export const PhoneWidgetIcon: React.FC<PhoneWidgetIconProps> = ({
             </div>
           ) : (
             <span className="text-[10px] text-stone-300 mt-1 bg-black/70 px-2 py-0.5 rounded-full backdrop-blur-xs">
-              Speak now (e.g. &ldquo;250 biryani&rdquo;)
+              Speak now (e.g. &ldquo;Biryani 250&rdquo;)
             </span>
           )}
         </div>

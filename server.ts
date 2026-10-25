@@ -57,122 +57,13 @@ const VALID_CATEGORIES = [
   'Other',
 ];
 
-// Fallback rule-based parser in case Gemini API is temporarily unavailable
-function fallbackParseTranscript(
-  transcript: string,
-  todayStr: string,
-  targetCurrency: string = 'PKR'
-): ExtractedExpenseItem[] {
-  const text = transcript.toLowerCase();
-  const results: ExtractedExpenseItem[] = [];
-
-  // Split by common conjunctions
-  const clauses = text.split(/\s*(?:,|aur|and|plus|phir|\+)\s*/i);
-
-  for (const clause of clauses) {
-    if (!clause.trim()) continue;
-
-    // Detect amounts like "250", "Rs 500", "500 ka", "100 rupay", "$50", "AED 20"
-    const amountMatch = clause.match(/(\d+(?:,\d+)*(?:\.\d+)?)/);
-    let amount = amountMatch ? parseFloat(amountMatch[1].replace(/,/g, '')) : 0;
-
-    // Detect word numbers in Urdu/English if no digits found
-    if (amount === 0) {
-      if (/\b(sau|so|hundred)\b/i.test(clause)) {
-        if (/\b(ek|one|1)\b/i.test(clause)) amount = 100;
-        else if (/\b(do|two|2)\b/i.test(clause)) amount = 200;
-        else if (/\b(teen|three|3)\b/i.test(clause)) amount = 300;
-        else if (/\b(char|chaar|four|4)\b/i.test(clause)) amount = 400;
-        else if (/\b(panch|paanch|five|5)\b/i.test(clause)) amount = 500;
-        else amount = 100;
-      } else if (/\b(hazar|hazaar|thousand)\b/i.test(clause)) {
-        if (/\b(ek|one|1)\b/i.test(clause)) amount = 1000;
-        else if (/\b(do|two|2)\b/i.test(clause)) amount = 2000;
-        else if (/\b(teen|three|3)\b/i.test(clause)) amount = 3000;
-        else if (/\b(panch|paanch|five|5)\b/i.test(clause)) amount = 5000;
-        else if (/\b(dus|das|ten|10)\b/i.test(clause)) amount = 10000;
-        else amount = 1000;
-      } else if (/\b(pachas|fifty)\b/i.test(clause)) {
-        amount = 50;
-      } else if (/\b(bees|twenty)\b/i.test(clause)) {
-        amount = 20;
-      }
-    }
-
-    let category = 'Other';
-    if (/biryani|burger|pizza|khana|khayi|khaya|lunch|dinner|chai|coffee|tea|nashta|food|drink|restaurant|shawarma|karahi|roll|samosa|bakery|juice|hotel|snack|mcdonalds|kfc/i.test(clause)) {
-      category = 'Food & Drinks';
-    } else if (/careem|uber|indrive|petrol|fuel|diesel|rikshaw|rickshaw|bus|metro|taxi|transport|ride|bykea|toll|parking|fare|cng/i.test(clause)) {
-      category = 'Transport';
-    } else if (/grocery|groceries|doodh|milk|dahi|sabzi|vegetable|fruit|atta|chawal|rice|oil|ghee|ration|supermarket|mart|eggs|anday|meat|gosht|chicken/i.test(clause)) {
-      category = 'Groceries';
-    } else if (/bijli|gas|water|electricity|bill|bills|wifi|internet|mobile load|recharge|easyload|ptcl|nayatel|utilities/i.test(clause)) {
-      category = 'Bills & Utilities';
-    } else if (/medicine|dawa|dawai|doctor|hospital|clinic|pharmacy|medical|dentist|test|checkup/i.test(clause)) {
-      category = 'Health';
-    } else if (/school|college|fees|fee|books|course|tuition|university|exam|academy|register/i.test(clause)) {
-      category = 'Education';
-    } else if (/kapray|clothes|shoes|joote|shopping|daraz|dress|shirt|pants|mall/i.test(clause)) {
-      category = 'Shopping';
-    } else if (/netflix|movie|cinema|game|gaming|concert|tickets/i.test(clause)) {
-      category = 'Entertainment';
-    } else if (/gym|salon|haircut|barber|facial|beauty|spa/i.test(clause)) {
-      category = 'Personal Care';
-    } else if (/rent|kiraya|flat rent|house rent/i.test(clause)) {
-      category = 'Rent';
-    } else if (/tour|trip|travel|flight|train|hotel stay/i.test(clause)) {
-      category = 'Travel';
-    }
-
-    let date = todayStr;
-    const isYesterday = /kal|yesterday|guzra kal/i.test(clause) && /tha|thi|the|li|diya|gaya|karaya/i.test(clause);
-    if (isYesterday) {
-      const d = new Date(todayStr);
-      d.setDate(d.getDate() - 1);
-      date = d.toISOString().split('T')[0];
-    }
-
-    const isFuturePlan = /karna hai|khana hai|jaunga|jaungi|dena hai|plan|will buy|tomorrow/i.test(clause) && !/tha|chuka|li/i.test(clause);
-
-    let paymentMethod = 'Cash';
-    if (/card|debit|credit/i.test(clause)) paymentMethod = 'Card';
-    else if (/easypaisa/i.test(clause)) paymentMethod = 'EasyPaisa';
-    else if (/jazzcash/i.test(clause)) paymentMethod = 'JazzCash';
-    else if (/online|bank|transfer|nayapay|sadapay/i.test(clause)) paymentMethod = 'Bank Transfer';
-
-    // Clean and extract title
-    let title = clause
-      .replace(/[.,!?;:]/g, '')
-      .replace(/\b(aaj|kal|maine|mene|kiya|tha|thi|the|hai|rupya|rupay|rupees|rs|pkr|usd|aed|eur|inr|ka|ki|ke|ko|li|khayi|khaya|dalwaya|de|diya|chuka|karaya|kareed|khareedi|spent|paid)\b/gi, '')
-      .replace(/\d+/g, '')
-      .replace(/\s+/g, ' ')
-      .trim();
-
-    if (!title || title.length < 2) {
-      title = category !== 'Other' ? category : 'Expense';
-    } else {
-      title = title.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
-    }
-
-    results.push({
-      id: 'exp_' + Math.random().toString(36).substring(2, 9),
-      title,
-      amount,
-      currency: targetCurrency,
-      category,
-      expenseDate: date,
-      paymentMethod,
-      notes: clause.trim(),
-      originalTranscript: transcript,
-      createdAt: new Date().toISOString(),
-      isFuturePlan,
-      missingAmount: amount <= 0,
-      clarificationNeeded: amount <= 0 ? 'Amount was not mentioned. Please specify how much was spent.' : undefined,
-    });
-  }
-
-  return results;
-}
+import {
+  parseRomanUrduExpenses,
+  sanitizeExtractedItem,
+  cleanExpenseTitle,
+  detectExpenseCategory,
+  splitCombinedExpenses,
+} from './src/lib/romanUrduNlp.ts';
 
 // POST /api/extract-expenses endpoint
 app.post('/api/extract-expenses', async (req, res) => {
@@ -189,13 +80,20 @@ app.post('/api/extract-expenses', async (req, res) => {
     const transcript = rawTranscript.trim();
     const referenceDate = localDate || new Date().toISOString().split('T')[0];
 
-    // If Gemini API key is missing, use intelligent fallback instantly
+    // If Gemini API key is missing, use intelligent Roman Urdu local NLP parser
     if (!process.env.GEMINI_API_KEY) {
-      const parsed = fallbackParseTranscript(transcript, referenceDate, currency);
-      return res.json({ expenses: parsed, source: 'fallback_parser' });
+      const parsed = splitCombinedExpenses(
+        parseRomanUrduExpenses(transcript, {
+          todayStr: referenceDate,
+          currency,
+        }),
+        referenceDate,
+        currency
+      );
+      return res.json({ expenses: parsed, source: 'roman_urdu_nlp_parser' });
     }
 
-    const systemInstruction = `You are Kharcha AI, an expert financial expense extractor specialized in ${currency}, Roman Urdu, English, Urdu, and bilingual conversational speech.
+    const systemInstruction = `You are Kharcha AI, an expert financial expense extractor specialized in ${currency}, Pakistani Roman Urdu, Urdu, English, and bilingual conversational speech.
 Given a user's speech transcript or text description of their expenses, your job is to extract distinct expense items into a structured list.
 
 Current Reference Context:
@@ -204,25 +102,48 @@ Current Reference Context:
 - Target currency: "${currency}"
 
 Supported Categories:
-- Food & Drinks
-- Transport
-- Groceries
-- Shopping
-- Bills & Utilities
-- Education
-- Health
-- Entertainment
-- Personal Care
-- Rent
-- Subscriptions
-- Travel
-- Other
+- Food & Drinks (biryani, pulao, nihari, burger, pizza, chai, coffee, nashta, shawarma, karahi, roll, samosa, coldrik, coldrink, cold drink, soft drink, pepsi, coke, sprite, dew, juice, falooda, snack, dhaba, restaurant, etc.)
+- Transport (petrol, fuel, diesel, rikshaw, auto, careem, uber, indrive, bykea, bus, metro, cab, taxi, fare/kiraya, toll, puncture, etc.)
+- Groceries (doodh, milk, dahi, sabzi, tamatar, pyaz, aalo, atta, chawal, daal, oil, ghee, anday, gosht, chicken, fruit, rashan, mart, etc.)
+- Bills & Utilities (bijli ka bill, electricity, gas bill, water tanker, internet, wifi, ptcl, mobile load, easyload, recharge, etc.)
+- Shopping (kapray, clothes, shoes, joote, dress, suit, shirt, daraz order, mall, bag, makeup, etc.)
+- Health (dawai, dawa, medicine, panadol, doctor, clinic, hospital, pharmacy, test, checkup, etc.)
+- Education (school fee, college fee, tuition, academy, books, copy, register, exam fee, etc.)
+- Personal Care (haircut, barber, salon, parlour, shave, cutting, facial, massage, etc.)
+- Entertainment (netflix, cinema, movie, tickets, gaming, match, etc.)
+- Rent (ghar ka kiraya, flat rent, room rent, hostel, etc.)
+- Subscriptions (spotify, netflix, youtube premium, chatgpt, etc.)
+- Travel (tour, trip, murree, hotel stay, flight, vacation, etc.)
+- Other (anything else)
 
-Rules:
-1. Extract EVERY distinct expense mentioned into an independent object.
-2. Date Resolution: "Aaj" = "${referenceDate}", "Kal" with past tense = yesterday relative to "${referenceDate}".
-3. Title should be concise in Title Case (e.g. "Biryani", "Careem Ride", "Petrol").
-4. Currency must be "${currency}".`;
+CRITICAL INSTRUCTIONS FOR ROMAN URDU & BILINGUAL SPEECH:
+1. REPHRASE TITLE IN PROPER ENGLISH: Do NOT just copy the user's raw spoken words or transliterations. Rephrase and translate the expense title into clean, professional, concise Title Case English:
+   - "yr aj mainay 200 ki biryani kahyae" -> title: "Biryani"
+   - "coldrink pee hai" -> title: "Cold Drink"
+   - "yr 500 ka petrol dalwaya tha" -> title: "Fuel / Petrol Refill"
+   - "bhai 1500 ki grocery li aur 300 ka falooda khaya" -> Item 1: "Grocery Provisions", Item 2: "Falooda"
+   - "5000 bijli ka bill paid via easypaisa" -> title: "Electricity Utility Bill"
+   - "pani ka tanker mangwaya" -> title: "Water Supply Tanker"
+   - "panadol dawai 80 rupay" -> title: "Panadol & Medicine"
+   - "baal katwaye 300" -> title: "Haircut & Grooming"
+   - "kapray khareede 2000" -> title: "Clothing & Shopping"
+   - "careem ride 250" -> title: "Careem Cab Ride"
+   - "subha ka nashta aur chai" -> title: "Breakfast & Tea"
+
+2. STRIP ALL CONVERSATIONAL FILLERS: Users speak conversationally in Roman Urdu. NEVER include conversational filler words, greetings, pronouns, day words, or verbs in the title:
+   - FORBIDDEN in titles: "yr", "yrr", "yar", "yaar", "bhai", "bro", "aj", "aaj", "kal", "maine", "mainay", "mene", "kahyae", "khayi", "khaya", "khai", "piya", "peeya", "pee", "liya", "li", "diya", "di", "karaya", "dalwaya", "tha", "hai", "ka", "ki", "ke", "spent", "paid"
+
+3. MULTI-ITEM SEPARATION FOR "KAY SATH" / "KE SATH" / "AUR" / "WITH":
+   When the user mentions multiple items or accompaniments connected by "kay sath", "ke sath", "k sath", "ky sath", "sath", "with", "aur", "and", "plus" (for example: "mainay biryani kay sath coldrik pee hai", "biryani ke sath coldrink", "200 ki biryani kay sath coldrik", "burger aur fries"):
+   You MUST ALWAYS extract EACH ITEM AS A COMPLETELY SEPARATE ELEMENT in the 'expenses' array:
+   - Item 1: title: "Biryani", category: "Food & Drinks"
+   - Item 2: title: "Cold Drink", category: "Food & Drinks"
+   NEVER give both items the same title like "Biryani" or "Biryani Meal". If an item is a cold drink, its title MUST be "Cold Drink"!
+   If individual prices are specified, assign them. If only one amount is mentioned (e.g., "200 ki biryani kay sath coldrik"), assign 200 to the first item and 0 to the accompanying drink item with missingAmount: true.
+
+4. ACCURATE CATEGORY MAPPING:
+   - Assign the most appropriate specific category from the Supported Categories list above.
+   - Do NOT default to "Other" if the item clearly belongs to Food, Transport, Groceries, Bills, etc.`;
 
     const promptText = `Extract all expenses from the following transcript:
 "${transcript}"`;
@@ -242,7 +163,7 @@ Rules:
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  title: { type: Type.STRING, description: 'Short clean title of the expense' },
+                  title: { type: Type.STRING, description: 'Short clean title of the expense item only' },
                   amount: { type: Type.NUMBER, description: `Numeric amount in ${currency}. 0 if missing` },
                   currency: { type: Type.STRING, description: `Always ${currency}` },
                   category: {
@@ -282,48 +203,62 @@ Rules:
     try {
       parsedData = JSON.parse(rawJson);
     } catch (parseErr) {
-      console.warn('Error parsing Gemini JSON response, utilizing fallback parser');
-      const fallback = fallbackParseTranscript(transcript, referenceDate, currency);
+      console.warn('Error parsing Gemini JSON response, utilizing Roman Urdu parser');
+      const fallback = splitCombinedExpenses(
+        parseRomanUrduExpenses(transcript, {
+          todayStr: referenceDate,
+          currency,
+        }),
+        referenceDate,
+        currency
+      );
       return res.json({ expenses: fallback, source: 'fallback_after_json_error' });
     }
 
-    const items: ExtractedExpenseItem[] = (parsedData.expenses || []).map((item, index) => {
-      // Validate category
-      const matchedCategory = VALID_CATEGORIES.find(
-        (c) => c.toLowerCase() === (item.category || '').toLowerCase()
-      ) || 'Other';
-
-      return {
-        id: 'exp_' + Date.now().toString(36) + '_' + index + '_' + Math.random().toString(36).substring(2, 6),
-        title: item.title || 'Expense',
-        amount: typeof item.amount === 'number' ? Math.max(0, item.amount) : 0,
-        currency: currency,
-        category: matchedCategory,
-        expenseDate: item.expenseDate || referenceDate,
-        paymentMethod: item.paymentMethod || 'Cash',
-        notes: item.notes || '',
-        originalTranscript: transcript,
-        createdAt: new Date().toISOString(),
-        isFuturePlan: !!item.isFuturePlan,
-        missingAmount: !!item.missingAmount || item.amount <= 0,
-      };
+    const items = (parsedData.expenses || []).map((item) => {
+      // Pass through sanitizeExtractedItem to guarantee 100% removal of any residual "yr", "yrr", "kahyae"
+      // and ensure proper category assignment
+      return sanitizeExtractedItem(
+        {
+          ...item,
+          originalTranscript: transcript,
+        },
+        referenceDate,
+        currency
+      );
     });
 
-    if (items.length === 0) {
-      const fallback = fallbackParseTranscript(transcript, referenceDate, currency);
+    const splitItems = splitCombinedExpenses(items, referenceDate, currency);
+
+    if (splitItems.length === 0) {
+      const fallback = splitCombinedExpenses(
+        parseRomanUrduExpenses(transcript, {
+          todayStr: referenceDate,
+          currency,
+        }),
+        referenceDate,
+        currency
+      );
       return res.json({ expenses: fallback, source: 'fallback_empty' });
     }
 
-    return res.json({ expenses: items, source: 'gemini' });
+    return res.json({ expenses: splitItems, source: 'gemini' });
   } catch (error: any) {
     // Fast graceful fallback ensures user never waits or sees errors
     const textToParse = req.body?.transcript || req.body?.text || '';
     const refDate = req.body?.localDate || req.body?.dateContext || new Date().toISOString().split('T')[0];
     const curr = req.body?.currency || 'PKR';
-    const fallback = fallbackParseTranscript(textToParse, refDate, curr);
+    const fallback = splitCombinedExpenses(
+      parseRomanUrduExpenses(textToParse, {
+        todayStr: refDate,
+        currency: curr,
+      }),
+      refDate,
+      curr
+    );
     return res.json({
       expenses: fallback,
-      source: 'fallback_error',
+      source: 'roman_urdu_fallback_error',
       warning: error?.message,
     });
   }

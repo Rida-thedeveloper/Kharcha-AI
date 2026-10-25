@@ -10,7 +10,7 @@ export class SpeechManager {
   private recognition: any = null;
   private isListening: boolean = false;
   private currentTranscript: string = '';
-  private currentLanguage: 'en-US' | 'ur-PK' = 'en-US';
+  private currentLanguage: 'en-US' | 'ur-PK' | 'en-PK' = 'en-PK';
 
   public isSupported(): boolean {
     return typeof window !== 'undefined' && !!(
@@ -18,7 +18,7 @@ export class SpeechManager {
     );
   }
 
-  public setLanguage(lang: 'en-US' | 'ur-PK') {
+  public setLanguage(lang: 'en-US' | 'ur-PK' | 'en-PK') {
     this.currentLanguage = lang;
     if (this.recognition) {
       try {

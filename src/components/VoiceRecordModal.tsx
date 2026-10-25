@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Mic, MicOff, Send, Loader2, Sparkles, X, Plus, AlertCircle, Volume2 } from 'lucide-react';
 import { ExtractedExpense } from '../types/expense';
 import { speechManager } from '../lib/speech';
+import { parseRomanUrduExpenses, sanitizeExtractedItem } from '../lib/romanUrduNlp';
 import { ExpenseReviewCard } from './ExpenseReviewCard';
 
 interface VoiceRecordModalProps {
@@ -13,11 +14,11 @@ interface VoiceRecordModalProps {
 }
 
 const SAMPLE_PROMPTS = [
-  'Aaj 200 ka burger khaya',
-  'Aaj maine 250 ki biryani khayi, 100 rupay ki Careem ride li aur kal 500 ka petrol dalwaya tha',
-  'Kal 1500 ki grocery li aur 300 ka falooda khaya',
-  '5000 bijli ka bill paid via EasyPaisa',
-  'Kal 500 ka petrol dalwaya tha',
+  'Biryani 250',
+  'Cold Drink 80',
+  'Petrol 500',
+  'Grocery 1500',
+  'Electricity Bill 5000',
 ];
 
 export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({
@@ -113,16 +114,30 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({
       }
 
       const data = await res.json();
-      if (data.expenses && Array.isArray(data.expenses) && data.expenses.length > 0) {
-        setReviewItems(data.expenses);
+      let items: ExtractedExpense[] = data.expenses || [];
+
+      if (!items || items.length === 0) {
+        items = parseRomanUrduExpenses(text, { todayStr: today, currency: 'PKR' });
+      }
+
+      const sanitized = items.map((it) => sanitizeExtractedItem(it, today, 'PKR'));
+
+      if (sanitized.length > 0) {
+        setReviewItems(sanitized);
       } else {
         setProcessingError(
           'No distinct expenses could be recognized. Please specify an expense name and amount.'
         );
       }
     } catch (err: any) {
-      console.error('Failed to extract expenses:', err);
-      setProcessingError(err?.message || 'Failed to process expense with AI. Please check server.');
+      console.warn('Network extraction error in modal, utilizing local Roman Urdu NLP parser:', err);
+      const today = new Date().toISOString().split('T')[0];
+      const fallback = parseRomanUrduExpenses(text, { todayStr: today, currency: 'PKR' });
+      if (fallback.length > 0) {
+        setReviewItems(fallback.map((it) => sanitizeExtractedItem(it, today, 'PKR')));
+      } else {
+        setProcessingError(err?.message || 'Failed to process expense with AI. Please check server.');
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -190,7 +205,7 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({
                 Record Expense with Voice & AI
               </h2>
               <p className="text-xs text-stone-500">
-                Natural Language in Roman Urdu, Urdu, or English
+                Smart speech recognition &amp; instant parsing
               </p>
             </div>
           </div>
@@ -226,7 +241,7 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({
                         : 'text-stone-600 hover:text-stone-900'
                     }`}
                   >
-                    Roman Urdu / English
+                    English / Voice
                   </button>
                   <button
                     type="button"
@@ -284,7 +299,7 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({
                   {isRecording ? 'Listening... Tap to finish' : 'Tap microphone to speak'}
                 </p>
                 <p className="text-[11px] text-stone-500 mt-0.5">
-                  e.g. &ldquo;Aaj 250 ki biryani khayi aur 100 rupay Careem&rdquo;
+                  e.g. &ldquo;Biryani 250, Careem 100, Petrol 500&rdquo;
                 </p>
 
                 {/* Live Transcript Display */}
@@ -308,7 +323,7 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({
               <div className="bg-white rounded-xl p-4 border border-stone-200">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-semibold text-stone-700">
-                    Or type in Roman Urdu or English:
+                    Or type expenses manually:
                   </span>
                   {!isSpeechSupported && (
                     <span className="text-[11px] text-amber-600 font-medium">
@@ -322,7 +337,7 @@ export const VoiceRecordModal: React.FC<VoiceRecordModalProps> = ({
                     type="text"
                     value={manualText}
                     onChange={(e) => setManualText(e.target.value)}
-                    placeholder="e.g. Aaj maine 250 ki biryani khayi, 100 Careem..."
+                    placeholder="e.g. Biryani 250, Careem 100, Petrol 500..."
                     className="flex-1 px-3 py-2 text-xs rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white"
                     disabled={isProcessing}
                   />

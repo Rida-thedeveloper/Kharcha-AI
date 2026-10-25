@@ -118,7 +118,7 @@ export const CompactWidget: React.FC<CompactWidgetProps> = ({
               Speak your expense
             </span>
             <span className="text-[11px] text-stone-500 block leading-tight">
-              Roman Urdu, Urdu, or English
+              AI voice &amp; text logging
             </span>
           </div>
 
@@ -146,14 +146,14 @@ export const CompactWidget: React.FC<CompactWidgetProps> = ({
               <div className="flex flex-wrap items-center justify-center gap-1 pt-1">
                 <button
                   type="button"
-                  onClick={() => onQuickTextSubmit('Aaj 200 ka burger khaya')}
+                  onClick={() => onQuickTextSubmit('Burger 200')}
                   className="text-[10px] bg-stone-200/60 hover:bg-emerald-100 text-stone-600 hover:text-emerald-900 px-2 py-0.5 rounded transition-colors"
                 >
-                  Try: 200 ka burger
+                  Try: Burger 200
                 </button>
                 <button
                   type="button"
-                  onClick={() => onQuickTextSubmit('Aaj maine 250 ki biryani khayi, 100 Careem aur kal 500 ka petrol')}
+                  onClick={() => onQuickTextSubmit('Biryani 250, Careem 100, Petrol 500')}
                   className="text-[10px] bg-stone-200/60 hover:bg-emerald-100 text-stone-600 hover:text-emerald-900 px-2 py-0.5 rounded transition-colors"
                 >
                   Try: Multiple items
@@ -167,7 +167,7 @@ export const CompactWidget: React.FC<CompactWidgetProps> = ({
                   type="text"
                   value={quickInput}
                   onChange={(e) => setQuickInput(e.target.value)}
-                  placeholder="e.g. Aaj 200 ka burger khaya..."
+                  placeholder="e.g. Burger 200, Petrol 500..."
                   className="flex-1 px-3 py-1.5 text-xs bg-white border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   autoFocus
                 />

@@ -12,6 +12,11 @@ import {
   getCurrencyConfig,
   getInitialSeedExpenses,
 } from './lib/storage';
+import {
+  parseRomanUrduExpenses,
+  sanitizeExtractedItem,
+  splitCombinedExpenses,
+} from './lib/romanUrduNlp';
 import { ExpandedWidget } from './components/ExpandedWidget';
 import { EditExpenseModal } from './components/EditExpenseModal';
 import { CurrencySetupModal } from './components/CurrencySetupModal';
@@ -117,8 +122,9 @@ export default function App() {
     }
 
     setIsExtracting(true);
+    const todayStr = new Date().toISOString().split('T')[0];
+
     try {
-      const todayStr = new Date().toISOString().split('T')[0];
       const res = await fetch('/api/extract-expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -140,36 +146,17 @@ export default function App() {
 
       // Fallback if list is empty but text was provided
       if (extractedList.length === 0) {
-        const numMatch = text.match(/(\d+(?:,\d+)*(?:\.\d+)?)/);
-        const amount = numMatch ? parseFloat(numMatch[1].replace(/,/g, '')) : 0;
-        extractedList = [
-          {
-            id: 'exp_' + Date.now().toString(36),
-            title: text.replace(/\d+/g, '').trim() || 'Expense',
-            amount,
-            currency: currency || 'PKR',
-            category: 'Other',
-            expenseDate: todayStr,
-            paymentMethod: 'Cash',
-            createdAt: new Date().toISOString(),
-          },
-        ];
+        extractedList = parseRomanUrduExpenses(text, {
+          todayStr,
+          currency: currency || 'PKR',
+        });
       }
 
-      // Directly convert and save to state (Auto Category Assigned!)
-      const newItems: Expense[] = extractedList.map((item) => ({
-        id: item.id || 'exp_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
-        title: item.title || 'Expense',
-        amount: Number(item.amount) || 0,
-        currency: currency || 'PKR',
-        category: item.category || 'Other',
-        expenseDate: item.expenseDate || todayStr,
-        paymentMethod: item.paymentMethod || 'Cash',
-        notes: item.notes || '',
-        originalTranscript: text,
-        createdAt: new Date().toISOString(),
-        isFuturePlan: !!item.isFuturePlan,
-      }));
+      // Directly convert and save to state with complete stopword sanitization and category detection
+      const sanitized = extractedList.map((item) =>
+        sanitizeExtractedItem(item, todayStr, currency || 'PKR')
+      );
+      const newItems: Expense[] = splitCombinedExpenses(sanitized, todayStr, currency || 'PKR');
 
       // Immediately append to expenses list
       setExpenses((prev) => [...newItems, ...prev]);
@@ -179,26 +166,40 @@ export default function App() {
         showToast(`✓ Saved: ${it.title} · ${formatCurrency(it.amount, currency)} (${it.category})`);
       }
     } catch (err) {
-      console.error('Direct extraction error:', err);
-      // Even if network or API errors, save the raw text directly as an expense
-      const todayStr = new Date().toISOString().split('T')[0];
-      const numMatch = text.match(/(\d+(?:,\d+)*(?:\.\d+)?)/);
-      const amount = numMatch ? parseFloat(numMatch[1].replace(/,/g, '')) : 0;
-      const directItem: Expense = {
-        id: 'exp_' + Date.now().toString(36),
-        title: text.replace(/\d+/g, '').trim() || 'Expense',
-        amount,
+      console.warn('Network extraction error, utilizing Roman Urdu parser fallback:', err);
+      // Even if network or API errors, accurately parse Roman Urdu and save cleanly
+      const parsed = parseRomanUrduExpenses(text, {
+        todayStr,
         currency: currency || 'PKR',
-        category: 'Other',
-        expenseDate: todayStr,
-        paymentMethod: 'Cash',
-        notes: text,
-        originalTranscript: text,
-        createdAt: new Date().toISOString(),
-        isFuturePlan: false,
-      };
-      setExpenses((prev) => [directItem, ...prev]);
-      showToast(`✓ Saved: ${directItem.title} · ${formatCurrency(directItem.amount, currency)}`);
+      });
+      const fallbackItems = splitCombinedExpenses(parsed, todayStr, currency || 'PKR');
+
+      const directItems: Expense[] = fallbackItems.length > 0
+        ? fallbackItems
+        : [
+            sanitizeExtractedItem(
+              {
+                id: 'exp_' + Date.now().toString(36),
+                title: text,
+                amount: 0,
+                currency: currency || 'PKR',
+                category: 'Other',
+                expenseDate: todayStr,
+                paymentMethod: 'Cash',
+                notes: text,
+                originalTranscript: text,
+                createdAt: new Date().toISOString(),
+                isFuturePlan: false,
+              },
+              todayStr,
+              currency || 'PKR'
+            ),
+          ];
+
+      setExpenses((prev) => [...directItems, ...prev]);
+      for (const it of directItems) {
+        showToast(`✓ Saved: ${it.title} · ${formatCurrency(it.amount, currency)} (${it.category})`);
+      }
     } finally {
       setIsExtracting(false);
     }
@@ -334,98 +335,105 @@ export default function App() {
         )}
       </div>
 
-      {/* Main Responsive Phone Container */}
-      <div className="w-full h-[100dvh] sm:h-[844px] sm:max-w-[390px] bg-stone-950 sm:p-3 sm:rounded-[50px] sm:shadow-2xl sm:border-[5px] sm:border-stone-800 flex flex-col relative overflow-hidden transition-all">
-        {/* Physical Dynamic Island / Speaker Notch (visible on desktop mockup) */}
-        <div className="hidden sm:flex w-28 h-4.5 bg-black rounded-full mx-auto mb-1 items-center justify-center shrink-0">
-          <div className="w-2.5 h-2.5 bg-stone-900 rounded-full mr-2" />
-          <div className="w-2 h-2 bg-stone-950 rounded-full" />
-        </div>
-
-        {/* Phone Screen Canvas */}
-        <div className="w-full h-full bg-gradient-to-b from-stone-900 via-stone-950 to-black text-white sm:rounded-[40px] overflow-hidden flex flex-col relative">
-          {/* Top Status Bar */}
-          <div className="px-6 pt-3 pb-2 flex items-center justify-between text-xs font-semibold text-stone-300 select-none shrink-0 z-10">
-            <span>{currentTime.timeStr}</span>
-            <div className="flex items-center gap-2 text-stone-300">
-              <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/60">
-                {currConfig.code}
-              </span>
-              <Wifi className="w-3.5 h-3.5" />
-              <Battery className="w-4 h-4" />
+      {/* Main Container: Strict Vertical Phone Shape for both collapsed and expanded views */}
+      <div
+        className={`w-full transition-all duration-300 flex flex-col relative overflow-hidden ${
+          widgetExpanded
+            ? 'h-[100dvh] sm:h-[844px] sm:max-w-[400px] sm:rounded-[44px] sm:border-[5px] sm:border-stone-800 sm:shadow-2xl bg-[#FAF8F5]'
+            : 'h-[100dvh] sm:h-[844px] sm:max-w-[390px] bg-stone-950 sm:p-3 sm:rounded-[50px] sm:shadow-2xl sm:border-[5px] sm:border-stone-800'
+        }`}
+      >
+        {!widgetExpanded ? (
+          <>
+            {/* Physical Dynamic Island / Speaker Notch (visible on phone mockup) */}
+            <div className="hidden sm:flex w-28 h-4.5 bg-black rounded-full mx-auto mb-1 items-center justify-center shrink-0">
+              <div className="w-2.5 h-2.5 bg-stone-900 rounded-full mr-2" />
+              <div className="w-2 h-2 bg-stone-950 rounded-full" />
             </div>
+
+            {/* Phone Screen Canvas */}
+            <div className="w-full h-full bg-gradient-to-b from-stone-900 via-stone-950 to-black text-white sm:rounded-[40px] overflow-hidden flex flex-col relative">
+              {/* Top Status Bar */}
+              <div className="px-6 pt-3 pb-2 flex items-center justify-between text-xs font-semibold text-stone-300 select-none shrink-0 z-10">
+                <span>{currentTime.timeStr}</span>
+                <div className="flex items-center gap-2 text-stone-300">
+                  <span className="text-[10px] text-emerald-400 font-mono font-bold bg-emerald-950/80 px-1.5 py-0.5 rounded border border-emerald-800/60">
+                    {currConfig.code === 'PKR' ? 'Rs.' : currConfig.code}
+                  </span>
+                  <Wifi className="w-3.5 h-3.5" />
+                  <Battery className="w-4 h-4" />
+                </div>
+              </div>
+
+              {/* PHONE HOME SCREEN: CLEAN, MINIMAL, JUST THE ICON */}
+              <div className="flex-1 flex flex-col justify-between p-6 select-none animate-in fade-in duration-200">
+                {/* Minimal Top Clock & Date */}
+                <div className="text-center pt-6">
+                  <span className="text-5xl font-extralight tracking-tight text-white block font-sans">
+                    {currentTime.timeStr}
+                  </span>
+                  <span className="text-xs text-stone-400 font-medium mt-1 block tracking-wide">
+                    {currentTime.dateStr}
+                  </span>
+                </div>
+
+                {/* CENTER: KHARCHA AI WIDGET ICON */}
+                <div className="my-auto py-8 flex flex-col items-center justify-center">
+                  <PhoneWidgetIcon
+                    todayTotal={metrics.todayTotal}
+                    currency={currency}
+                    onTap={() => setWidgetExpanded(true)}
+                    onHoldRecordComplete={handleDirectExtractAndSave}
+                    onSpeechError={(err) => showToast(err, 'info')}
+                    isProcessing={isExtracting}
+                    isBudgetExceeded={metrics.isBudgetExceeded}
+                    isBudgetWarning={metrics.isBudgetWarning}
+                  />
+                </div>
+
+                {/* Bottom Phone Dock */}
+                <div className="space-y-3 pb-2">
+                  <div className="flex justify-center">
+                    <PWAInstallButton variant="compact" />
+                  </div>
+                  <div className="p-2.5 bg-white/10 backdrop-blur-xl rounded-3xl flex items-center justify-around text-stone-300 border border-white/5">
+                    <div className="w-11 h-11 rounded-2xl bg-emerald-600/90 flex items-center justify-center text-white shadow-sm">
+                      <Phone className="w-5 h-5" />
+                    </div>
+                    <div className="w-11 h-11 rounded-2xl bg-blue-600/90 flex items-center justify-center text-white shadow-sm">
+                      <MessageCircle className="w-5 h-5" />
+                    </div>
+                    <div className="w-11 h-11 rounded-2xl bg-amber-600/90 flex items-center justify-center text-white shadow-sm">
+                      <Compass className="w-5 h-5" />
+                    </div>
+                    <div className="w-11 h-11 rounded-2xl bg-purple-600/90 flex items-center justify-center text-white shadow-sm">
+                      <Camera className="w-5 h-5" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Bottom Home Indicator Bar */}
+              <div className="w-32 h-1 bg-white/40 rounded-full mx-auto my-2 shrink-0 pointer-events-none" />
+            </div>
+          </>
+        ) : (
+          /* EXPANDED VIEW: COMPLETE RESPONSIVE EXPENSE MANAGEMENT */
+          <div className="w-full h-full flex flex-col animate-in fade-in duration-200">
+            <ExpandedWidget
+              expenses={expenses}
+              budget={budget}
+              currency={currency}
+              metrics={metrics}
+              onCollapse={() => setWidgetExpanded(false)}
+              onDirectSaveExpense={handleDirectExtractAndSave}
+              onEditExpense={(exp) => setEditingExpense(exp)}
+              onDeleteExpense={handleDeleteExpense}
+              onUpdateBudget={handleUpdateBudget}
+              onOpenCurrencySettings={() => setShowCurrencyModal(true)}
+            />
           </div>
-
-          {/* SCREEN CONTENT: Toggle between Home Screen (Icon only) and Expanded View */}
-          {!widgetExpanded ? (
-            /* PHONE HOME SCREEN: CLEAN, MINIMAL, JUST THE ICON (No extra banners or clutter) */
-            <div className="flex-1 flex flex-col justify-between p-6 select-none animate-in fade-in duration-200">
-              {/* Minimal Top Clock & Date */}
-              <div className="text-center pt-6">
-                <span className="text-5xl font-extralight tracking-tight text-white block font-sans">
-                  {currentTime.timeStr}
-                </span>
-                <span className="text-xs text-stone-400 font-medium mt-1 block tracking-wide">
-                  {currentTime.dateStr}
-                </span>
-              </div>
-
-              {/* CENTER: KHARCHA AI WIDGET ICON */}
-              <div className="my-auto py-8 flex flex-col items-center justify-center">
-                <PhoneWidgetIcon
-                  todayTotal={metrics.todayTotal}
-                  currency={currency}
-                  onTap={() => setWidgetExpanded(true)}
-                  onHoldRecordComplete={handleDirectExtractAndSave}
-                  onSpeechError={(err) => showToast(err, 'info')}
-                  isProcessing={isExtracting}
-                  isBudgetExceeded={metrics.isBudgetExceeded}
-                  isBudgetWarning={metrics.isBudgetWarning}
-                />
-              </div>
-
-              {/* Bottom Phone Dock */}
-              <div className="space-y-3 pb-2">
-                <div className="flex justify-center">
-                  <PWAInstallButton variant="compact" />
-                </div>
-                <div className="p-2.5 bg-white/10 backdrop-blur-xl rounded-3xl flex items-center justify-around text-stone-300 border border-white/5">
-                  <div className="w-11 h-11 rounded-2xl bg-emerald-600/90 flex items-center justify-center text-white shadow-sm">
-                    <Phone className="w-5 h-5" />
-                  </div>
-                  <div className="w-11 h-11 rounded-2xl bg-blue-600/90 flex items-center justify-center text-white shadow-sm">
-                    <MessageCircle className="w-5 h-5" />
-                  </div>
-                  <div className="w-11 h-11 rounded-2xl bg-amber-600/90 flex items-center justify-center text-white shadow-sm">
-                    <Compass className="w-5 h-5" />
-                  </div>
-                  <div className="w-11 h-11 rounded-2xl bg-purple-600/90 flex items-center justify-center text-white shadow-sm">
-                    <Camera className="w-5 h-5" />
-                  </div>
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* EXPANDED WIDGET VIEW: COMPLETE EXPENSE MANAGEMENT */
-            <div className="flex-1 w-full bg-[#FAF8F5] text-stone-900 overflow-hidden flex flex-col animate-in slide-in-from-bottom duration-250">
-              <ExpandedWidget
-                expenses={expenses}
-                budget={budget}
-                currency={currency}
-                metrics={metrics}
-                onCollapse={() => setWidgetExpanded(false)}
-                onDirectSaveExpense={handleDirectExtractAndSave}
-                onEditExpense={(exp) => setEditingExpense(exp)}
-                onDeleteExpense={handleDeleteExpense}
-                onUpdateBudget={handleUpdateBudget}
-                onOpenCurrencySettings={() => setShowCurrencyModal(true)}
-              />
-            </div>
-          )}
-
-          {/* Bottom Home Indicator Bar */}
-          <div className="w-32 h-1 bg-white/40 rounded-full mx-auto my-2 shrink-0 pointer-events-none" />
-        </div>
+        )}
       </div>
 
       {/* Desktop External Helper Controls Bar */}
@@ -438,7 +446,7 @@ export default function App() {
           className="hover:text-stone-800 inline-flex items-center gap-1 font-medium bg-white/70 px-2.5 py-1 rounded-lg border border-stone-200 transition-colors cursor-pointer"
         >
           <Coins className="w-3.5 h-3.5 text-emerald-700" />
-          <span>Currency: {currConfig.flag} {currConfig.code}</span>
+          <span>Currency: {currConfig.flag} {currConfig.code === 'PKR' ? 'Rs.' : currConfig.code}</span>
         </button>
 
         <button
