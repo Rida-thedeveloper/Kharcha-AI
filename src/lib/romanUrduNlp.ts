@@ -604,9 +604,6 @@ export function sanitizeExtractedItem(
       category = detectedFromTitle;
     }
   }
-      category = detected;
-    }
-  }
 
   return {
     id: item.id || 'exp_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6),
